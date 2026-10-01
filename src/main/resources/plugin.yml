@@ -1,0 +1,22 @@
+name: $pluginName
+main: $pluginMain
+version: $version
+api-version: '26.2'
+description: 모든 플레이어가 하나의 인벤토리를 공유하는 불편한 동거
+
+commands:
+  invcaptive:
+    description: 공유 인벤토리 잠금 / 해제한 블록 확인
+    usage: /<command> [blocks [페이지]]
+    aliases: [inv]
+  q:
+    description: 파괴한 블록 목록 (/invcaptive blocks 와 같음)
+    usage: /<command> [페이지]
+
+permissions:
+  invcaptive.command:
+    description: /invcaptive (잠금), /invcaptive list 사용
+    default: op
+  invcaptive.blocks:
+    description: /invcaptive blocks 사용
+    default: true
