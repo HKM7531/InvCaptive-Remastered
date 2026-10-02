@@ -103,7 +103,14 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         SharedInventory.push(Bukkit.getOnlinePlayers())
 
         server.scheduler.runTaskTimer(this, Runnable { SharedInventory.sync() }, 1L, 1L)
+
+        // config.yml 의 update-check: false 로 끌 수 있다
+        if (YamlConfiguration.loadConfiguration(configFile).getBoolean("update-check", true)) {
+            updateChecker = UpdateChecker(this, pluginMeta.version).also { it.check() }
+        }
     }
+
+    private var updateChecker: UpdateChecker? = null
 
     override fun onDisable() {
         saveAll()
@@ -130,10 +137,19 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
         if (file.exists()) config.load(file)
 
+        var changed = false
+
         if (!config.contains("seed")) {
             config.set("seed", Random.nextLong())
-            config.save(file)
+            changed = true
         }
+
+        if (!config.contains("update-check")) {
+            config.set("update-check", true)
+            changed = true
+        }
+
+        if (changed) config.save(file)
 
         return config.getLong("seed")
     }
@@ -284,6 +300,8 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     @EventHandler
     fun onPlayerJoin(event: PlayerJoinEvent) {
         SharedInventory.applyTo(event.player)
+
+        if (event.player.hasPermission(PERM_ADMIN)) updateChecker?.notify(event.player)
     }
 
     @Suppress("UNUSED_PARAMETER")
