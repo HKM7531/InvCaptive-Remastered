@@ -720,19 +720,17 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             }
         )
 
-        // 한 줄에 5개씩 배치된다. 첫 줄: 범위 + 처음/이전/다음/끝, 둘째 줄: 번호, 맨 아래: 닫기
+        // 동작 없는 빈 버튼: 줄을 5칸으로 맞추는 용도
+        fun spacer(): ActionButton = ActionButton.create(Component.text(" "), null, NAV_BUTTON_WIDTH, null)
+
+        fun fillRow(row: MutableList<ActionButton>) {
+            while (row.size % 5 != 0) row += spacer()
+        }
+
+        // 한 줄에 5개씩 배치된다. 첫 줄: 번호, 둘째 줄: 범위 + 처음/이전/다음/끝, 맨 아래: 닫기
         val buttons = ArrayList<ActionButton>()
-        buttons += filterButton
 
         if (lastPage > 1) {
-            val prev = if (page > 1) page - 1 else lastPage
-            val next = if (page < lastPage) page + 1 else 1
-
-            buttons += pageButton("처음", 1, "1페이지")
-            buttons += pageButton("이전", prev, "${prev}페이지")
-            buttons += pageButton("다음", next, "${next}페이지")
-            buttons += pageButton("끝", lastPage, "${lastPage}페이지")
-
             // 현재 페이지 주변 번호 버튼 (최대 5개). 현재 페이지는 노란색 [번호]
             val first = (page - 2).coerceAtMost(lastPage - 4).coerceAtLeast(1)
             val last = (first + 4).coerceAtMost(lastPage)
@@ -748,8 +746,21 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
                     pageButton("$number", number, "${number}페이지")
                 }
             }
+
+            fillRow(buttons)
         }
 
+        buttons += filterButton
+
+        if (lastPage > 1) {
+            val prev = if (page > 1) page - 1 else lastPage
+            val next = if (page < lastPage) page + 1 else 1
+
+            buttons += pageButton("처음", 1, "1페이지")
+            buttons += pageButton("이전", prev, "${prev}페이지")
+            buttons += pageButton("다음", next, "${next}페이지")
+            buttons += pageButton("끝", lastPage, "${lastPage}페이지")
+        }
         val type = DialogType.multiAction(buttons, closeButton, 5)
 
         val base = DialogBase.builder(Component.text("${filter.title} ($page/$lastPage)", NamedTextColor.YELLOW))
