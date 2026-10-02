@@ -14,6 +14,7 @@ import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.event.ClickCallback
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
+import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.ItemStack
 import java.time.Duration
 import org.bukkit.Bukkit
@@ -23,6 +24,7 @@ import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Firework
+import org.bukkit.event.Event
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
@@ -325,8 +327,26 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
     @EventHandler
     fun onInteract(event: PlayerInteractEvent) {
-        if (event.item?.type == Material.BARRIER) {
+        val item = event.item ?: return
+
+        if (item.type == Material.BARRIER) {
             event.isCancelled = true
+            return
+        }
+
+        // 우클릭 장착은 해당 방어구 칸의 방벽을 손으로 옮겨 칸을 풀어 버리므로, 잠겨 있으면 막는다
+        if (SharedInventory.active && event.action.isRightClick) {
+            val armorSlot = when (item.type.equipmentSlot) {
+                EquipmentSlot.FEET -> 36
+                EquipmentSlot.LEGS -> 37
+                EquipmentSlot.CHEST -> 38
+                EquipmentSlot.HEAD -> 39
+                else -> return
+            }
+
+            if (SharedInventory.isLocked(armorSlot)) {
+                event.setUseItemInHand(Event.Result.DENY)
+            }
         }
     }
 
