@@ -106,7 +106,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
         // config.yml 의 update-check: false 로 끌 수 있다
         if (YamlConfiguration.loadConfiguration(configFile).getBoolean("update-check", true)) {
-            updateChecker = UpdateChecker(this, pluginMeta.version).also { it.check() }
+            updateChecker = UpdateChecker(this, pluginMeta.version).also { it.start() }
         }
     }
 

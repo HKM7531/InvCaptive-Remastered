@@ -1,0 +1,35 @@
+name: Release
+
+# GitHub에서 릴리스를 게시하면 태그 이름을 버전으로 jar를 빌드해 그 릴리스에 첨부한다.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew build -Pversion="${TAG#v}"
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+
+      - name: Attach jar to release
+        run: gh release upload "$TAG" build/libs/InvCaptive.jar --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}

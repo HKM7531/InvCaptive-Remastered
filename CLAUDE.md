@@ -10,6 +10,10 @@
 - Kotlin stdlib는 jar에 포함. NMS/ProtocolLib/외부 라이브러리 의존성 없음
 - 클라우드 샌드박스는 Maven/Paper 저장소에 접속할 수 없어 **지금까지 한 번도 컴파일 검증을 못 했음**. 새 세션에서 먼저 빌드해서 오류부터 확인할 것
 
+## 릴리스
+- GitHub에서 릴리스를 게시(태그 예: `26.3.0-a3`)하면 `.github/workflows/release.yml`이 태그 이름을 버전(`-Pversion`)으로 빌드해 `InvCaptive.jar`를 그 릴리스에 첨부한다. `gradle.properties`의 `version`은 로컬 빌드용 기본값이라 릴리스 때 손댈 필요 없음
+- 시작 시 `UpdateChecker`가 GitHub 릴리스(사전 릴리스 포함) 중 가장 높은 태그와 jar 버전을 비교해 새 버전을 알림. 태그는 `숫자.숫자.숫자[-a숫자]` 형식을 유지할 것
+
 ## 구조 (`src/main/kotlin/com/github/monun/invcaptive/plugin/`)
 - `InvCaptivePlugin.kt`: 이벤트(클릭/드롭/상호작용/아이템 생성/손 바꾸기 방벽 보호, 블록 파괴, 사망), 명령어, 대화상자(Dialog) 목록, 제외 목록 파일 처리
 - `SharedInventory.kt`: 기준 인벤토리 1개를 매 틱 pull(플레이어→기준) / push(기준→전원). 같은 틱 충돌은 드롭·병합·무시로 처리. `captive()`, `stop()`, `release(slot)`, `takeAllExceptBarriers()`, 저장/불러오기

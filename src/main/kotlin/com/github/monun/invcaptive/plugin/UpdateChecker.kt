@@ -24,15 +24,25 @@ class UpdateChecker(private val plugin: JavaPlugin, private val currentVersion: 
     var latest: Release? = null
         private set
 
-    fun check() {
-        plugin.server.scheduler.runTaskAsynchronously(plugin, Runnable {
-            val newest = runCatching { fetchNewest() }
-                .onFailure { plugin.logger.info("업데이트 확인에 실패했습니다: ${it.message}") }
-                .getOrNull() ?: return@Runnable
+    /** 시작 직후 한 번, 이후 1시간마다 확인한다. 새 버전이 처음 발견될 때만 알린다. */
+    fun start() {
+        plugin.server.scheduler.runTaskTimerAsynchronously(plugin, Runnable { check() }, 0L, CHECK_INTERVAL_TICKS)
+    }
 
-            if (compareVersions(newest.tag, currentVersion) > 0) {
-                latest = newest
-                plugin.logger.warning("새 버전이 나왔습니다: ${newest.tag} (현재 $currentVersion) ${newest.url}")
+    private fun check() {
+        val newest = runCatching { fetchNewest() }
+            .onFailure { plugin.logger.info("업데이트 확인에 실패했습니다: ${it.message}") }
+            .getOrNull() ?: return
+
+        if (compareVersions(newest.tag, currentVersion) <= 0 || newest.tag == latest?.tag) return
+
+        latest = newest
+        plugin.logger.warning("새 버전이 나왔습니다: ${newest.tag} (현재 $currentVersion) ${newest.url}")
+
+        // 서버가 돌아가는 중에 발견되면 접속 중인 관리자에게 바로 알린다 (메인 스레드에서 전송)
+        plugin.server.scheduler.runTask(plugin, Runnable {
+            for (player in plugin.server.onlinePlayers) {
+                if (player.hasPermission("invcaptive.command")) notify(player)
             }
         })
     }
@@ -76,7 +86,9 @@ class UpdateChecker(private val plugin: JavaPlugin, private val currentVersion: 
     companion object {
         private const val RELEASES_URL = "https://api.github.com/repos/HKM7531/InvCaptive-Remastered/releases?per_page=20"
 
-        private val TOKEN = Regex("[0-9]+|[A-Za-z]+")
+        private const val CHECK_INTERVAL_TICKS = 20L * 60 * 60
+
+        private val TOKEN =Regex("[0-9]+|[A-Za-z]+")
 
         /**
          * 버전 비교. "26.3.0" 같은 숫자 부분을 먼저 비교하고, "-a2" 같은 사전 릴리스 표기가 있으면
