@@ -30,6 +30,8 @@ object BlockLog {
 
     fun brokenBlocks(): List<Material> = broken.toList()
 
+    fun isBroken(type: Material): Boolean = type in broken
+
     fun releaseOf(type: Material): Release? = releases[type]
 
     fun load(file: File) {

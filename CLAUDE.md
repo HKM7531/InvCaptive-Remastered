@@ -28,7 +28,7 @@
 | 명령어 | 권한 | 설명 |
 |---|---|---|
 | `/invcaptive` (`/inv`) | command | 잠금 시작 + 기록 초기화 |
-| `/invcaptive blocks [페이지]`, `/q [페이지]` | blocks | 파괴한 블록 목록 (Dialog, 20개/페이지, 번호 버튼·처음/이전/다음/끝, 콘솔은 채팅) |
+| `/invcaptive blocks [broken\|unbroken\|all] [페이지]`, `/q ...` | blocks | 블록 목록 (Dialog, 20개/페이지, 캔 블록/안 캔 블록/전체 선택 버튼·번호(4개)·처음/이전/다음/끝, 콘솔은 채팅). 안 캔 블록 = 슬롯 후보 중 미파괴 |
 | `/invcaptive list` | command | 칸별 해제 블록. 이름 클릭 = 그 블록을 파괴한 것으로 처리해 칸 해제 |
 | `/invcaptive excluded` | command | 제외 블록(사유 없이 쉼표로 한 줄) |
 | `/invcaptive exclude [list|add|remove <블록>]` | command | `excluded-blocks.txt` 편집(재시작 후 적용) |

@@ -417,7 +417,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         // /q [페이지] : 파괴한 블록 목록
         if (command.name.equals("q", ignoreCase = true)) {
-            if (requirePermission(sender, PERM_BLOCKS)) sendBrokenBlocks(sender, args.getOrNull(0))
+            if (requirePermission(sender, PERM_BLOCKS)) sendBrokenBlocks(sender, args.toList())
             return true
         }
 
@@ -428,7 +428,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             }
 
             "blocks" -> if (requirePermission(sender, PERM_BLOCKS)) {
-                sendBrokenBlocks(sender, args.getOrNull(1))
+                sendBrokenBlocks(sender, args.drop(1))
             }
 
             "list" -> if (requirePermission(sender, PERM_ADMIN)) {
@@ -455,7 +455,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             }
 
             else -> sender.sendMessage(
-                Component.text("사용법: /$label blocks [페이지] (파괴한 블록 확인)", NamedTextColor.RED)
+                Component.text("사용법: /$label blocks [broken|unbroken|all] [페이지] (블록 확인)", NamedTextColor.RED)
             )
         }
 
@@ -469,9 +469,9 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         args: Array<out String>
     ): List<String> {
         if (command.name.equals("q", ignoreCase = true)) {
-            if (args.size != 1 || !sender.hasPermission(PERM_BLOCKS)) return emptyList()
+            if (!sender.hasPermission(PERM_BLOCKS)) return emptyList()
 
-            return (1..pageCount(BlockLog.brokenBlocks().size)).map { it.toString() }.filter { it.startsWith(args[0]) }
+            return blocksCompletions(args.toList())
         }
 
         return when (args.size) {
@@ -486,14 +486,16 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             }.filter { it.startsWith(args[0], ignoreCase = true) }
 
             2 -> if (args[0].equals("blocks", ignoreCase = true) && sender.hasPermission(PERM_BLOCKS)) {
-                (1..pageCount(BlockLog.brokenBlocks().size)).map { it.toString() }.filter { it.startsWith(args[1]) }
+                blocksCompletions(args.drop(1))
             } else if (args[0].equals("exclude", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
                 listOf("list", "add", "remove").filter { it.startsWith(args[1], ignoreCase = true) }
             } else {
                 emptyList()
             }
 
-            3 -> if (args[0].equals("exclude", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
+            3 -> if (args[0].equals("blocks", ignoreCase = true) && sender.hasPermission(PERM_BLOCKS)) {
+                blocksCompletions(args.drop(1))
+            } else if (args[0].equals("exclude", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
                 val candidates: List<Material> = when (args[1].lowercase()) {
                     "add" -> Material.values().filter { !it.isLegacy && it.isBlock && !it.isAir }
                     "remove" -> excludedSet.toList()
@@ -518,37 +520,93 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
     private fun pageCount(total: Int): Int = maxOf(1, (total + PAGE_SIZE - 1) / PAGE_SIZE)
 
+    /** /invcaptive blocks 에서 보여줄 블록 범위 */
+    private enum class BlockFilter(val label: String, val title: String) {
+        BROKEN("캔 블록", "캔 블록"),
+        UNBROKEN("안 캔 블록", "안 캔 블록"),
+        ALL("전체", "전체 블록")
+    }
+
+    private fun parseBlockFilter(token: String): BlockFilter? = when (token.lowercase()) {
+        "broken", "캔" -> BlockFilter.BROKEN
+        "unbroken", "안캔" -> BlockFilter.UNBROKEN
+        "all", "모두", "전체" -> BlockFilter.ALL
+        else -> null
+    }
+
+    /** 범위에 해당하는 블록을 가나다순으로. 안 캔 블록 = 슬롯 대응 후보 중 아직 파괴하지 않은 블록 */
+    private fun blocksFor(filter: BlockFilter): List<Material> {
+        val broken = BlockLog.brokenBlocks().toSet()
+        val candidates = Material.values().filter { isSurvivalBreakable(it) }
+
+        val blocks: Collection<Material> = when (filter) {
+            BlockFilter.BROKEN -> broken
+            BlockFilter.UNBROKEN -> candidates.filter { it !in broken }
+            BlockFilter.ALL -> candidates.toSet() + broken
+        }
+
+        return blocks.sortedWith(BlockNames.comparator)
+    }
+
+    /** blocks / q 명령의 탭 완성. 인자는 [범위] [페이지] 순서 무관하게 각각 최대 하나 */
+    private fun blocksCompletions(args: List<String>): List<String> {
+        if (args.isEmpty() || args.size > 2) return emptyList()
+
+        val previous = args.dropLast(1)
+        val current = args.last()
+        val filter = previous.firstNotNullOfOrNull { parseBlockFilter(it) }
+        val hasPage = previous.any { it.toIntOrNull() != null }
+
+        return buildList {
+            if (filter == null) addAll(listOf("broken", "unbroken", "all"))
+            if (!hasPage) addAll((1..pageCount(blocksFor(filter ?: BlockFilter.BROKEN).size)).map { it.toString() })
+        }.filter { it.startsWith(current, ignoreCase = true) }
+    }
+
     /**
-     * 지금까지 파괴한 모든 블록을 가나다순으로 10개씩 보여준다. 명령어를 쓴 사람에게만 표시된다.
-     * 칸 해제에 성공한 블록은 금색으로, 해제한 플레이어와 칸 번호를 옆에 표시한다.
+     * 블록 목록을 가나다순으로 보여준다. 명령어를 쓴 사람에게만 표시된다.
+     * 인자: [broken|unbroken|all] [페이지]. 칸 해제에 성공한 블록은 금색으로, 해제한 플레이어와 칸 번호를 옆에 표시한다.
      */
-    private fun sendBrokenBlocks(sender: CommandSender, pageArg: String?) {
-        val blocks = BlockLog.brokenBlocks().sortedWith(BlockNames.comparator)
+    private fun sendBrokenBlocks(sender: CommandSender, args: List<String>) {
+        var filter = BlockFilter.BROKEN
+        var pageArg: String? = null
+
+        for (token in args) {
+            val parsed = parseBlockFilter(token)
+
+            if (parsed != null) {
+                filter = parsed
+            } else if (token.toIntOrNull() != null) {
+                pageArg = token
+            } else {
+                sender.sendMessage(Component.text("사용법: /blocks [broken|unbroken|all] [페이지]", NamedTextColor.RED))
+                return
+            }
+        }
+
+        // 플레이어: 채팅에 쌓이지 않도록 대화상자(Dialog)로 보여주고, 페이지를 넘길 때마다 같은 창을 교체한다.
+        if (sender is Player) {
+            showBrokenBlocksDialog(sender, filter, pageArg?.toInt() ?: 1)
+            return
+        }
+
+        // 콘솔: 채팅 출력
+        val blocks = blocksFor(filter)
 
         if (blocks.isEmpty()) {
-            sender.sendMessage(Component.text("아직 파괴한 블록이 없습니다.", NamedTextColor.YELLOW))
+            sender.sendMessage(Component.text(emptyMessage(filter), NamedTextColor.YELLOW))
             return
         }
 
         val lastPage = pageCount(blocks.size)
-        val page = if (pageArg == null) 1 else pageArg.toIntOrNull() ?: run {
-            sender.sendMessage(Component.text("페이지 번호는 숫자로 입력하세요. (1~$lastPage)", NamedTextColor.RED))
-            return
-        }
+        val page = pageArg?.toInt() ?: 1
 
         if (page !in 1..lastPage) {
             sender.sendMessage(Component.text("페이지 번호는 1~$lastPage 사이로 입력하세요.", NamedTextColor.RED))
             return
         }
 
-        // 플레이어: 채팅에 쌓이지 않도록 대화상자(Dialog)로 보여주고, 페이지를 넘길 때마다 같은 창을 교체한다.
-        if (sender is Player) {
-            showBrokenBlocksDialog(sender, page)
-            return
-        }
-
-        // 콘솔: 채팅 출력
-        sender.sendMessage(brokenBlocksSummary(blocks, page, lastPage))
+        sender.sendMessage(brokenBlocksSummary(blocks, filter, page, lastPage))
 
         val start = (page - 1) * PAGE_SIZE
         for ((offset, type) in blocks.drop(start).take(PAGE_SIZE).withIndex()) {
@@ -556,21 +614,38 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         }
     }
 
-    private fun brokenBlocksSummary(blocks: List<Material>, page: Int, lastPage: Int): Component {
+    private fun emptyMessage(filter: BlockFilter): String = when (filter) {
+        BlockFilter.BROKEN -> "아직 파괴한 블록이 없습니다."
+        BlockFilter.UNBROKEN -> "남은 블록이 없습니다."
+        BlockFilter.ALL -> "표시할 블록이 없습니다."
+    }
+
+    private fun brokenBlocksSummary(blocks: List<Material>, filter: BlockFilter, page: Int, lastPage: Int): Component {
+        val brokenCount = blocks.count { BlockLog.isBroken(it) }
         val releasedCount = blocks.count { BlockLog.releaseOf(it) != null }
 
-        return Component.text(
-            "$page/$lastPage 페이지 · 총 ${blocks.size}종 · 칸 해제 ${releasedCount}개",
-            NamedTextColor.YELLOW
-        )
+        val text = when (filter) {
+            BlockFilter.BROKEN -> "$page/$lastPage 페이지 · 총 ${blocks.size}종 · 칸 해제 ${releasedCount}개"
+            BlockFilter.UNBROKEN -> "$page/$lastPage 페이지 · 총 ${blocks.size}종"
+            BlockFilter.ALL -> "$page/$lastPage 페이지 · 총 ${blocks.size}종 · 캔 ${brokenCount}종 · 칸 해제 ${releasedCount}개"
+        }
+
+        return Component.text(text, NamedTextColor.YELLOW)
     }
 
     private fun brokenBlockLine(number: Int, type: Material): Component {
         val release = BlockLog.releaseOf(type)
+        val broken = release != null || BlockLog.isBroken(type)
+
+        val color = when {
+            release != null -> NamedTextColor.GOLD
+            broken -> NamedTextColor.WHITE
+            else -> NamedTextColor.GRAY
+        }
 
         val line = Component.text()
             .append(Component.text("$number. ", NamedTextColor.GRAY))
-            .append(BlockNames.displayName(type, if (release != null) NamedTextColor.GOLD else NamedTextColor.WHITE))
+            .append(BlockNames.displayName(type, color))
 
         if (release != null) {
             line.append(
@@ -584,9 +659,9 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         return line.build()
     }
 
-    /** 파괴한 블록 목록 대화상자. 버튼을 누르면 같은 창이 새 페이지로 교체된다. */
-    private fun showBrokenBlocksDialog(player: Player, requestedPage: Int) {
-        val blocks = BlockLog.brokenBlocks().sortedWith(BlockNames.comparator)
+    /** 블록 목록 대화상자. 버튼을 누르면 같은 창이 새 페이지/범위로 교체된다. */
+    private fun showBrokenBlocksDialog(player: Player, filter: BlockFilter, requestedPage: Int) {
+        val blocks = blocksFor(filter)
         val lastPage = pageCount(blocks.size)
         val page = requestedPage.coerceIn(1, lastPage)
 
@@ -597,13 +672,17 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
         val content = Component.join(
             JoinConfiguration.newlines(),
-            listOf(brokenBlocksSummary(blocks, page, lastPage), Component.empty()) + lines
+            if (blocks.isEmpty()) {
+                listOf(Component.text(emptyMessage(filter), NamedTextColor.YELLOW))
+            } else {
+                listOf(brokenBlocksSummary(blocks, filter, page, lastPage), Component.empty()) + lines
+            }
         )
 
-        fun reopen(viewer: Any?, target: Int) {
+        fun reopen(viewer: Any?, targetFilter: BlockFilter, target: Int) {
             val who = viewer as? Player ?: return
             // 콜백에서 바로 새 대화상자를 열면 기존 창이 교체된다. 메인 스레드에서 실행.
-            Bukkit.getScheduler().runTask(this, Runnable { showBrokenBlocksDialog(who, target) })
+            Bukkit.getScheduler().runTask(this, Runnable { showBrokenBlocksDialog(who, targetFilter, target) })
         }
 
         val options = ClickCallback.Options.builder().build()
@@ -620,8 +699,17 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             button(
                 Component.text(label, NamedTextColor.AQUA),
                 tooltip,
-                DialogActionCallback { _, audience -> reopen(audience, target) }
+                DialogActionCallback { _, audience -> reopen(audience, filter, target) }
             )
+
+        // 범위 토글: 캔 블록 -> 안 캔 블록 -> 전체 -> 캔 블록 순서로 바뀐다
+        val nextFilter = BlockFilter.values()[(filter.ordinal + 1) % BlockFilter.values().size]
+
+        val filterButton = button(
+            Component.text("범위: ${filter.label}", NamedTextColor.YELLOW),
+            "클릭하면 ${nextFilter.label}",
+            DialogActionCallback { _, audience -> reopen(audience, nextFilter, 1) }
+        )
 
         val closeButton = button(
             Component.text("닫기", NamedTextColor.GRAY),
@@ -632,43 +720,39 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             }
         )
 
-        val type: DialogType
+        // 한 줄에 5개씩 배치된다. 첫 줄: 범위 + 처음/이전/다음/끝, 둘째 줄: 번호, 맨 아래: 닫기
+        val buttons = ArrayList<ActionButton>()
+        buttons += filterButton
 
         if (lastPage > 1) {
+            val prev = if (page > 1) page - 1 else lastPage
+            val next = if (page < lastPage) page + 1 else 1
+
+            buttons += pageButton("처음", 1, "1페이지")
+            buttons += pageButton("이전", prev, "${prev}페이지")
+            buttons += pageButton("다음", next, "${next}페이지")
+            buttons += pageButton("끝", lastPage, "${lastPage}페이지")
+
             // 현재 페이지 주변 번호 버튼 (최대 5개). 현재 페이지는 노란색 [번호]
             val first = (page - 2).coerceAtMost(lastPage - 4).coerceAtLeast(1)
             val last = (first + 4).coerceAtMost(lastPage)
 
-            val numbers = (first..last).map { number ->
-                if (number == page) {
+            for (number in first..last) {
+                buttons += if (number == page) {
                     button(
                         Component.text("[$number]", NamedTextColor.YELLOW),
                         "현재 페이지",
-                        DialogActionCallback { _, audience -> reopen(audience, number) }
+                        DialogActionCallback { _, audience -> reopen(audience, filter, number) }
                     )
                 } else {
                     pageButton("$number", number, "${number}페이지")
                 }
             }
-
-            val prev = if (page > 1) page - 1 else lastPage
-            val next = if (page < lastPage) page + 1 else 1
-
-            val buttons = numbers + listOf(
-                pageButton("처음", 1, "1페이지"),
-                pageButton("이전", prev, "${prev}페이지"),
-                pageButton("다음", next, "${next}페이지"),
-                pageButton("끝", lastPage, "${lastPage}페이지"),
-                closeButton
-            )
-
-            // 첫 줄: 번호 버튼(최대 5개), 둘째 줄: 처음/이전/다음/끝/닫기
-            type = DialogType.multiAction(buttons, null, 5)
-        } else {
-            type = DialogType.notice(closeButton)
         }
 
-        val base = DialogBase.builder(Component.text("파괴한 블록 ($page/$lastPage)", NamedTextColor.YELLOW))
+        val type = DialogType.multiAction(buttons, closeButton, 5)
+
+        val base = DialogBase.builder(Component.text("${filter.title} ($page/$lastPage)", NamedTextColor.YELLOW))
             .body(listOf(DialogBody.plainMessage(content, 400)))
             .pause(false)
             .canCloseWithEscape(true)
