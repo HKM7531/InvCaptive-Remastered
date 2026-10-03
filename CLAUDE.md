@@ -12,7 +12,7 @@
 
 ## 릴리스
 - GitHub에서 릴리스를 게시(태그 예: `26.3.0-a3`)하면 `.github/workflows/release.yml`이 태그 이름을 버전(`-Pversion`)으로 빌드해 `InvCaptive.jar`를 그 릴리스에 첨부한다. `gradle.properties`의 `version`은 로컬 빌드용 기본값이라 릴리스 때 손댈 필요 없음
-- 시작 시 `UpdateChecker`가 GitHub 릴리스(사전 릴리스 포함) 중 가장 높은 태그와 jar 버전을 비교해 새 버전을 알림. 태그는 `숫자.숫자.숫자[-a숫자]` 형식을 유지할 것
+- 시작 시 `UpdateChecker`가 GitHub 릴리스(사전 릴리스 포함) 중 가장 높은 태그와 jar 버전을 비교해 새 버전을 알림(1시간마다 확인, 콘솔과 전체 플레이어에게 알림 — 권한 필터 없음). `auto-update`(기본 켜짐)이면 새 jar를 SHA-256 확인 후 `plugins/update/`에 저장하고 다음 재시작 때 Paper가 교체. 릴리스 asset 이름은 `InvCaptive.jar` 고정. 태그는 `숫자.숫자.숫자[-a숫자]` 형식을 유지할 것
 
 ## 구조 (`src/main/kotlin/com/github/monun/invcaptive/plugin/`)
 - `InvCaptivePlugin.kt`: 이벤트(클릭/드롭/상호작용/아이템 생성/손 바꾸기 방벽 보호, 블록 파괴, 사망), 명령어, 대화상자(Dialog) 목록, 제외 목록 파일 처리
@@ -34,7 +34,7 @@
 | `/invcaptive` (`/inv`) | command | 잠금 시작 + 기록 초기화 |
 | `/invcaptive blocks [broken\|unbroken\|all] [페이지]`, `/q ...` | blocks | 블록 목록 (Dialog, 20개/페이지, 캔 블록/안 캔 블록/전체 선택 버튼·번호(4개)·처음/이전/다음/끝, 콘솔은 채팅). 안 캔 블록 = 슬롯 후보 중 미파괴 |
 | `/invcaptive list` | command | 칸별 해제 블록. 이름 클릭 = 그 블록을 파괴한 것으로 처리해 칸 해제 |
-| `/invcaptive excluded` | command | 제외 블록(사유 없이 쉼표로 한 줄) |
+| `/invcaptive excluded` | blocks | 제외 블록(사유 없이 쉼표로 한 줄) |
 | `/invcaptive exclude [list|add|remove <블록>]` | command | `excluded-blocks.txt` 편집(재시작 후 적용) |
 | `/invcaptive stop` | command | 방벽 제거 + 공유 종료 (`/invcaptive`로 재시작) |
 

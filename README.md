@@ -34,7 +34,7 @@ JDK 25가 필요합니다. 인터넷 연결이 필요합니다(Maven Central, re
 | `/invcaptive` (`/inv`) | `invcaptive.command` (OP) | 잠금 시작. 해제 기록 초기화 |
 | `/invcaptive blocks [broken\|unbroken\|all] [페이지]`<br>`/q [broken\|unbroken\|all] [페이지]` | `invcaptive.blocks` (모두) | 블록 목록 보기 |
 | `/invcaptive list` | OP | 칸별 해제 블록과 잠김/열림 상태. 블록 이름을 클릭하면 그 블록을 파괴한 것으로 처리 |
-| `/invcaptive excluded` | OP | 슬롯 대응에서 제외된 블록 보기 |
+| `/invcaptive excluded` | `invcaptive.blocks` (모두) | 슬롯 대응에서 제외된 블록 보기 |
 | `/invcaptive exclude [list\|add <블록>\|remove <블록>]` | OP | 제외 블록 편집. 재시작 후 적용 |
 | `/invcaptive stop` | OP | 장벽을 모두 치우고 공유 종료. `/invcaptive`로 재시작 |
 
@@ -46,7 +46,9 @@ JDK 25가 필요합니다. 인터넷 연결이 필요합니다(Maven Central, re
 
 ## 설정 (`plugins/InvCaptive/`)
 
-- `config.yml`: `seed`(블록 대응 시드), `update-check`(`false`면 새 버전 알림 끔)
+- `config.yml`: `seed`(블록 대응 시드), `update-check`(`false`면 새 버전 확인과 알림 끔), `auto-update`(`false`면 새 jar 자동 다운로드 끔)
 - `excluded-blocks.txt`: 슬롯 대응에서 제외할 블록. 한 줄에 Material 이름 하나(또는 쉼표 구분), `#` 뒤는 주석. 파일을 지우면 기본 목록으로 다시 생성. 수정하면 슬롯 대응이 바뀌므로 재시작 후 `/invcaptive`로 다시 시작
 
-새 버전이 나오면 서버 시작 시와 1시간마다 확인해 콘솔과 접속 중인 OP에게 알려 줍니다.
+새 버전이 나오면 서버 시작 시와 1시간마다 확인해 콘솔과 모든 플레이어에게 알려 줍니다. 서버에 있는 플레이어에게는 발견 즉시, 이후 접속하는 플레이어에게는 접속할 때 알립니다.
+
+기본값으로 새 jar를 `plugins/update/`에 자동으로 받아 두며, 서버를 재시작하면 교체됩니다. 실행 중에는 교체하지 않습니다. 알파 버전도 대상이며, 받은 파일은 GitHub가 알려 주는 SHA-256과 일치할 때만 저장합니다. 끄려면 `auto-update: false`로 설정합니다.

@@ -104,9 +104,12 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
         server.scheduler.runTaskTimer(this, Runnable { SharedInventory.sync() }, 1L, 1L)
 
-        // config.yml 의 update-check: false 로 끌 수 있다
-        if (YamlConfiguration.loadConfiguration(configFile).getBoolean("update-check", true)) {
-            updateChecker = UpdateChecker(this, pluginMeta.version).also { it.start() }
+        // config.yml 의 update-check: false 로 확인을 끄고, auto-update: false 로 자동 다운로드만 끌 수 있다
+        val config = YamlConfiguration.loadConfiguration(configFile)
+
+        if (config.getBoolean("update-check", true)) {
+            updateChecker = UpdateChecker(this, pluginMeta.version, config.getBoolean("auto-update", true))
+                .also { it.start() }
         }
     }
 
@@ -146,6 +149,11 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
         if (!config.contains("update-check")) {
             config.set("update-check", true)
+            changed = true
+        }
+
+        if (!config.contains("auto-update")) {
+            config.set("auto-update", true)
             changed = true
         }
 
@@ -302,7 +310,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     fun onPlayerJoin(event: PlayerJoinEvent) {
         SharedInventory.applyTo(event.player)
 
-        if (event.player.hasPermission(PERM_ADMIN)) updateChecker?.notify(event.player)
+        updateChecker?.notify(event.player)
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -454,7 +462,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
                 sendSlotList(sender)
             }
 
-            "excluded" -> if (requirePermission(sender, PERM_ADMIN)) {
+            "excluded" -> if (requirePermission(sender, PERM_BLOCKS)) {
                 sendExcludedBlocks(sender)
             }
 
@@ -495,10 +503,12 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
         return when (args.size) {
             1 -> buildList {
-                if (sender.hasPermission(PERM_BLOCKS)) add("blocks")
+                if (sender.hasPermission(PERM_BLOCKS)) {
+                    add("blocks")
+                    add("excluded")
+                }
                 if (sender.hasPermission(PERM_ADMIN)) {
                     add("list")
-                    add("excluded")
                     add("exclude")
                     add("stop")
                 }
