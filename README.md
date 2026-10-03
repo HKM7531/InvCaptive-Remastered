@@ -32,7 +32,7 @@ JDK 25가 필요합니다. 인터넷 연결이 필요합니다(Maven Central, re
 | 명령어 | 권한 | 설명 |
 |---|---|---|
 | `/invcaptive` (`/inv`) | `invcaptive.command` (OP) | 잠금 시작. 해제 기록 초기화 |
-| `/invcaptive blocks [broken\|unbroken\|all] [페이지]`<br>`/q [broken\|unbroken\|all] [페이지]` | `invcaptive.blocks` (모두) | 블록 목록 보기 |
+| `/invcaptive blocks [broken\|unbroken\|all] [페이지] [검색어]`<br>`/q [broken\|unbroken\|all] [페이지] [검색어]` | `invcaptive.blocks` (모두) | 블록 목록 보기. 예: `/q 다이아`, `/q all diamond` |
 | `/invcaptive list` | OP | 칸별 해제 블록과 잠김/열림 상태. 블록 이름을 클릭하면 그 블록을 파괴한 것으로 처리 |
 | `/invcaptive excluded` | `invcaptive.blocks` (모두) | 슬롯 대응에서 제외된 블록 보기 |
 | `/invcaptive exclude [list\|add <블록>\|remove <블록>]` | OP | 제외 블록 편집. 재시작 후 적용 |
@@ -43,6 +43,7 @@ JDK 25가 필요합니다. 인터넷 연결이 필요합니다(Maven Central, re
 - 범위: 캔 블록(`broken`, 기본) / 안 캔 블록(`unbroken`) / 전체(`all`)
 - 칸을 해제한 블록은 금색으로, 해제한 플레이어와 칸 번호와 함께 표시
 - 대화상자의 버튼으로 범위를 바꾸고 페이지를 넘길 수 있음
+- 검색: 대화상자 입력칸에 적고 `검색`을 누르거나 명령어 뒤에 검색어를 붙임. 한국어 이름과 영문 이름(`diamond_ore`)을 띄어쓰기와 대소문자 없이 부분 일치로 찾음. 입력칸을 비우고 누르거나 `검색 해제`를 누르면 해제. 현재 범위 안에서만 검색
 
 ## 설정 (`plugins/InvCaptive/`)
 

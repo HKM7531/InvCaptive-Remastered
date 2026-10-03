@@ -6,6 +6,7 @@ import io.papermc.paper.registry.data.dialog.DialogBase
 import io.papermc.paper.registry.data.dialog.action.DialogAction
 import io.papermc.paper.registry.data.dialog.action.DialogActionCallback
 import io.papermc.paper.registry.data.dialog.body.DialogBody
+import io.papermc.paper.registry.data.dialog.input.DialogInput
 import io.papermc.paper.registry.data.dialog.type.DialogType
 import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.text.Component
@@ -58,6 +59,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         const val PERM_BLOCKS = "invcaptive.blocks"
         const val PAGE_SIZE = 20
         const val NAV_BUTTON_WIDTH = 70
+        const val SEARCH_KEY = "query"
         const val EXCLUDED_FILE_NAME = "excluded-blocks.txt"
         const val EXCLUDED_FILE_MARKER = "InvCaptive 제외 블록 목록"
 
@@ -564,14 +566,36 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     }
 
     /** 범위에 해당하는 블록을 가나다순으로. 안 캔 블록 = 슬롯 대응 후보 중 아직 파괴하지 않은 블록 */
-    private fun blocksFor(filter: BlockFilter): List<Material> {
+    private fun blocksFor(filter: BlockFilter, query: String = ""): List<Material> {
         val blocks: Collection<Material> = when (filter) {
             BlockFilter.BROKEN -> BlockLog.brokenBlocks()
             BlockFilter.UNBROKEN -> candidates.filter { !BlockLog.isBroken(it) }
             BlockFilter.ALL -> candidates.toSet() + BlockLog.brokenBlocks()
         }
 
-        return blocks.sortedWith(BlockNames.comparator)
+        val matcher = searchMatcher(query)
+
+        return blocks.filter(matcher).sortedWith(BlockNames.comparator)
+    }
+
+    /**
+     * 검색어와 일치하는 블록인지 판별하는 함수. 한국어 이름과 영문 Material 이름(예: diamond_ore)을 대소문자와
+     * 띄어쓰기 없이 부분 일치로 비교한다. 검색어가 비어 있으면 모두 일치한다.
+     */
+    private fun searchMatcher(query: String): (Material) -> Boolean {
+        val text = query.trim().lowercase()
+
+        if (text.isEmpty()) return { true }
+
+        val compact = text.replace(" ", "")
+        val underscored = text.replace(' ', '_')
+
+        return { type ->
+            val id = type.name.lowercase()
+
+            BlockNames.koreanName(type)?.replace(" ", "")?.lowercase()?.contains(compact) == true ||
+                id.contains(underscored) || id.replace("_", "").contains(compact)
+        }
     }
 
     /** blocks / q 명령의 탭 완성. 인자는 [범위] [페이지] 순서 무관하게 각각 최대 하나 */
@@ -596,7 +620,9 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     private fun sendBrokenBlocks(sender: CommandSender, args: List<String>) {
         var filter = BlockFilter.BROKEN
         var pageArg: String? = null
+        val words = ArrayList<String>()
 
+        // 범위 이름과 숫자(페이지)가 아닌 나머지 단어는 검색어
         for (token in args) {
             val parsed = parseBlockFilter(token)
 
@@ -605,22 +631,23 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             } else if (token.toIntOrNull() != null) {
                 pageArg = token
             } else {
-                sender.sendMessage(Component.text("사용법: /blocks [broken|unbroken|all] [페이지]", NamedTextColor.RED))
-                return
+                words += token
             }
         }
 
+        val query = words.joinToString(" ")
+
         // 플레이어: 채팅에 쌓이지 않도록 대화상자(Dialog)로 보여주고, 페이지를 넘길 때마다 같은 창을 교체한다.
         if (sender is Player) {
-            showBrokenBlocksDialog(sender, filter, pageArg?.toInt() ?: 1)
+            showBrokenBlocksDialog(sender, filter, pageArg?.toInt() ?: 1, query)
             return
         }
 
         // 콘솔: 채팅 출력
-        val blocks = blocksFor(filter)
+        val blocks = blocksFor(filter, query)
 
         if (blocks.isEmpty()) {
-            sender.sendMessage(Component.text(emptyMessage(filter), NamedTextColor.YELLOW))
+            sender.sendMessage(Component.text(emptyMessage(filter, query), NamedTextColor.YELLOW))
             return
         }
 
@@ -632,7 +659,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             return
         }
 
-        sender.sendMessage(brokenBlocksSummary(blocks, filter, page, lastPage))
+        sender.sendMessage(brokenBlocksSummary(blocks, filter, query, page, lastPage))
 
         val start = (page - 1) * PAGE_SIZE
         for ((offset, type) in blocks.drop(start).take(PAGE_SIZE).withIndex()) {
@@ -640,21 +667,24 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         }
     }
 
-    private fun emptyMessage(filter: BlockFilter): String = when (filter) {
-        BlockFilter.BROKEN -> "아직 파괴한 블록이 없습니다."
-        BlockFilter.UNBROKEN -> "남은 블록이 없습니다."
-        BlockFilter.ALL -> "표시할 블록이 없습니다."
+    private fun emptyMessage(filter: BlockFilter, query: String): String = when {
+        query.isNotBlank() -> "'${query.trim()}'에 해당하는 블록이 없습니다."
+        filter == BlockFilter.BROKEN -> "아직 파괴한 블록이 없습니다."
+        filter == BlockFilter.UNBROKEN -> "남은 블록이 없습니다."
+        else -> "표시할 블록이 없습니다."
     }
 
-    private fun brokenBlocksSummary(blocks: List<Material>, filter: BlockFilter, page: Int, lastPage: Int): Component {
+    private fun brokenBlocksSummary(blocks: List<Material>, filter: BlockFilter, query: String, page: Int, lastPage: Int): Component {
         val brokenCount = blocks.count { BlockLog.isBroken(it) }
         val releasedCount = blocks.count { BlockLog.releaseOf(it) != null }
 
-        val text = when (filter) {
+        var text = when (filter) {
             BlockFilter.BROKEN -> "$page/$lastPage 페이지 · 총 ${blocks.size}종 · 칸 해제 ${releasedCount}개"
             BlockFilter.UNBROKEN -> "$page/$lastPage 페이지 · 총 ${blocks.size}종"
             BlockFilter.ALL -> "$page/$lastPage 페이지 · 총 ${blocks.size}종 · 캔 ${brokenCount}종 · 칸 해제 ${releasedCount}개"
         }
+
+        if (query.isNotBlank()) text += " · 검색 '${query.trim()}'"
 
         return Component.text(text, NamedTextColor.YELLOW)
     }
@@ -686,8 +716,8 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     }
 
     /** 블록 목록 대화상자. 버튼을 누르면 같은 창이 새 페이지/범위로 교체된다. */
-    private fun showBrokenBlocksDialog(player: Player, filter: BlockFilter, requestedPage: Int) {
-        val blocks = blocksFor(filter)
+    private fun showBrokenBlocksDialog(player: Player, filter: BlockFilter, requestedPage: Int, query: String = "") {
+        val blocks = blocksFor(filter, query)
         val lastPage = pageCount(blocks.size)
         val page = requestedPage.coerceIn(1, lastPage)
 
@@ -699,16 +729,16 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         val content = Component.join(
             JoinConfiguration.newlines(),
             if (blocks.isEmpty()) {
-                listOf(Component.text(emptyMessage(filter), NamedTextColor.YELLOW))
+                listOf(Component.text(emptyMessage(filter, query), NamedTextColor.YELLOW))
             } else {
-                listOf(brokenBlocksSummary(blocks, filter, page, lastPage), Component.empty()) + lines
+                listOf(brokenBlocksSummary(blocks, filter, query, page, lastPage), Component.empty()) + lines
             }
         )
 
-        fun reopen(viewer: Any?, targetFilter: BlockFilter, target: Int) {
+        fun reopen(viewer: Any?, targetFilter: BlockFilter, target: Int, targetQuery: String = query) {
             val who = viewer as? Player ?: return
             // 콜백에서 바로 새 대화상자를 열면 기존 창이 교체된다. 메인 스레드에서 실행.
-            Bukkit.getScheduler().runTask(this, Runnable { showBrokenBlocksDialog(who, targetFilter, target) })
+            Bukkit.getScheduler().runTask(this, Runnable { showBrokenBlocksDialog(who, targetFilter, target, targetQuery) })
         }
 
         val options = ClickCallback.Options.builder().build()
@@ -786,11 +816,38 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             buttons += pageButton("이전", prev, "${prev}페이지")
             buttons += pageButton("다음", next, "${next}페이지")
             buttons += pageButton("끝", lastPage, "${lastPage}페이지")
+        } else {
+            fillRow(buttons)
         }
+
+        // 검색: 입력칸에 적은 글자로 검색하고, 비워서 누르면 검색이 풀린다
+        buttons += button(
+            Component.text("검색", NamedTextColor.GREEN),
+            "입력칸의 글자로 검색 (비우면 해제)",
+            DialogActionCallback { view, audience -> reopen(audience, filter, 1, view.getText(SEARCH_KEY).orEmpty().trim()) }
+        )
+
+        if (query.isNotBlank()) {
+            buttons += button(
+                Component.text("검색 해제", NamedTextColor.RED),
+                "'${query.trim()}' 검색 해제",
+                DialogActionCallback { _, audience -> reopen(audience, filter, 1, "") }
+            )
+        }
+
         val type = DialogType.multiAction(buttons, closeButton, 5)
 
-        val base = DialogBase.builder(Component.text("${filter.title} ($page/$lastPage)", NamedTextColor.YELLOW))
+        val searchInput = DialogInput.text(SEARCH_KEY, Component.text("블록 검색 (한국어 또는 영문 이름)"))
+            .width(300)
+            .initial(query.trim())
+            .maxLength(40)
+            .build()
+
+        val titleText = if (query.isBlank()) "${filter.title} ($page/$lastPage)" else "${filter.title} · 검색 ($page/$lastPage)"
+
+        val base = DialogBase.builder(Component.text(titleText, NamedTextColor.YELLOW))
             .body(listOf(DialogBody.plainMessage(content, 400)))
+            .inputs(listOf(searchInput))
             .pause(false)
             .canCloseWithEscape(true)
             .afterAction(DialogBase.DialogAfterAction.NONE)
