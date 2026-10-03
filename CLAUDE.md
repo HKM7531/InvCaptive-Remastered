@@ -66,4 +66,4 @@
 3. "명령어로만 얻는 블록"(싹 틔우는 자수정, 몬스터 생성기, 시련 생성기, 금고, 벌레 먹은 돌류, 경작지, 개구리알, 후렴초, 스컬크 비명체 등)을 제외할지 — 현재는 후보에 포함
 4. `stop` 의미: 지금은 방벽만 제거하고 공유 종료. 대안(공유 유지/아이템 정리/한 명에게 전달) 미정
 5. 인게임 확인: 번호 버튼 레이아웃(페이지가 5개 미만일 때 버튼 줄), `/q` 탭 완성, `list` 클릭 해제
-6. GitHub 저장소 만들기: `.gitignore`(build/, .gradle/, .kotlin/), `LICENSE.md`(GPL-3) 포함, `gradlew.bat`와 `gradle/wrapper/`는 커밋
+6. GitHub 저장소 만들기: `.gitignore`(build/, .gradle/, .kotlin/), `LICENSE`(GPL-3) 포함, `gradlew.bat`와 `gradle/wrapper/`는 커밋
