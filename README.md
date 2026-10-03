@@ -2,7 +2,7 @@
 
 모든 플레이어가 인벤토리 하나를 공유합니다. `/invcaptive`로 인벤토리를 장벽으로 잠그고, 시드로 정해진 블록을 파괴할 때마다 칸이 하나씩 해제됩니다.
 
-원작: [noonmaru/inv-captive](https://github.com/noonmaru/inv-captive) 0.2.0 (GPL-3.0). 이 프로젝트도 GPL-3.0입니다.
+원작: [noonmaru/inv-captive](https://github.com/noonmaru/inv-captive) 0.2.0 (GPL-3.0)
 
 ## 설치
 
