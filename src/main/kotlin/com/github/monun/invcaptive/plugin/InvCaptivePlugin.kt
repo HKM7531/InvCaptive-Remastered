@@ -281,10 +281,11 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         return true
     }
 
+    /** 슬롯 대응 후보 전체 (Material 선언 순서). 제외 목록을 읽은 뒤 처음 쓸 때 한 번만 계산한다. */
+    private val candidates: List<Material> by lazy { Material.values().filter { isSurvivalBreakable(it) } }
+
     private fun createSlotMap(seed: Long): EnumMap<Material, Int> {
-        val blocks = Material.values()
-            .filter { isSurvivalBreakable(it) }
-            .shuffled(Random(seed))
+        val blocks = candidates.shuffled(Random(seed))
 
         val map = EnumMap<Material, Int>(Material::class.java)
 
@@ -377,7 +378,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
     @EventHandler
     fun onSwap(event: PlayerSwapHandItemsEvent) {
-        if (event.offHandItem?.type == Material.BARRIER || event.mainHandItem?.type == Material.BARRIER) {
+        if (event.offHandItem.type == Material.BARRIER || event.mainHandItem.type == Material.BARRIER) {
             event.isCancelled = true
         }
     }
@@ -554,13 +555,10 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
     /** 범위에 해당하는 블록을 가나다순으로. 안 캔 블록 = 슬롯 대응 후보 중 아직 파괴하지 않은 블록 */
     private fun blocksFor(filter: BlockFilter): List<Material> {
-        val broken = BlockLog.brokenBlocks().toSet()
-        val candidates = Material.values().filter { isSurvivalBreakable(it) }
-
         val blocks: Collection<Material> = when (filter) {
-            BlockFilter.BROKEN -> broken
-            BlockFilter.UNBROKEN -> candidates.filter { it !in broken }
-            BlockFilter.ALL -> candidates.toSet() + broken
+            BlockFilter.BROKEN -> BlockLog.brokenBlocks()
+            BlockFilter.UNBROKEN -> candidates.filter { !BlockLog.isBroken(it) }
+            BlockFilter.ALL -> candidates.toSet() + BlockLog.brokenBlocks()
         }
 
         return blocks.sortedWith(BlockNames.comparator)
@@ -721,7 +719,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             )
 
         // 범위 토글: 캔 블록 -> 안 캔 블록 -> 전체 -> 캔 블록 순서로 바뀐다
-        val nextFilter = BlockFilter.values()[(filter.ordinal + 1) % BlockFilter.values().size]
+        val nextFilter = BlockFilter.entries[(filter.ordinal + 1) % BlockFilter.entries.size]
 
         val filterButton = button(
             Component.text("범위: ${filter.label}", NamedTextColor.YELLOW),
