@@ -1,6 +1,7 @@
 package com.github.monun.invcaptive.plugin
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.Material
 import org.bukkit.entity.EntityType
@@ -30,11 +31,24 @@ object SealConditions {
         Component.text().append(Component.translatable(type.translationKey())).append(Component.text(" 처치")).build()
     )
 
-    /** 안 캔 블록 파괴. 어떤 블록인지는 Lore 에서 가려진다 (obfuscated) */
-    fun breakBlock(type: Material) = SealCondition(
-        "break:${type.name}",
-        Component.text().append(Component.text("???").decorate(TextDecoration.OBFUSCATED)).append(Component.text(" 파괴")).build()
-    )
+    /**
+     * 블록 파괴. 어떤 블록인지는 Lore 에서 가려진다 (obfuscated). 가린 글자 수는 한국어 이름의 공백 제외 글자 수와 같다.
+     * 봉인할 때 이미 캔 블록이면 빨간색으로 표시한다.
+     */
+    fun breakBlock(type: Material): SealCondition {
+        val length = BlockNames.koreanName(type)?.count { !it.isWhitespace() }?.takeIf { it > 0 } ?: 3
+        val red = BlockLog.isBroken(type)
+
+        fun part(text: Component) = if (red) text.color(NamedTextColor.RED) else text
+
+        return SealCondition(
+            "break:${type.name}",
+            Component.text()
+                .append(part(Component.text("?".repeat(length)).decorate(TextDecoration.OBFUSCATED)))
+                .append(part(Component.text(" 파괴")))
+                .build()
+        )
+    }
 
     /**
      * 무작위 조건 하나. 획득 / 처치 / 안 캔 블록 파괴 중 종류를 먼저 고른다.
