@@ -29,6 +29,7 @@ import org.bukkit.event.Event
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.block.BlockBreakEvent
+import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.ItemSpawnEvent
 import org.bukkit.event.entity.PlayerDeathEvent
 import org.bukkit.event.inventory.InventoryAction
@@ -105,6 +106,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         SharedInventory.push(Bukkit.getOnlinePlayers())
 
         server.scheduler.runTaskTimer(this, Runnable { SharedInventory.sync() }, 1L, 1L)
+        server.scheduler.runTaskTimer(this, Runnable { checkObtainSeals() }, 10L, 10L)
 
         // config.yml 의 update-check: false 로 확인을 끄고, auto-update: false 로 자동 다운로드만 끌 수 있다
         val config = YamlConfiguration.loadConfiguration(configFile)
@@ -116,6 +118,17 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     }
 
     private var updateChecker: UpdateChecker? = null
+
+    /** 사망 페널티 켜짐 여부 (config.yml 의 death-penalty) */
+    private var deathPenalty = false
+
+    private fun setDeathPenalty(value: Boolean) {
+        deathPenalty = value
+
+        val config = YamlConfiguration.loadConfiguration(configFile)
+        config.set("death-penalty", value)
+        config.save(configFile)
+    }
 
     override fun onDisable() {
         saveAll()
@@ -160,6 +173,8 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         }
 
         if (changed) config.save(file)
+
+        deathPenalty = config.getBoolean("death-penalty", false)
 
         return config.getLong("seed")
     }
@@ -329,7 +344,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
     @EventHandler
     fun onInventoryClick(event: InventoryClickEvent) {
-        if (SharedInventory.isBarrier(event.currentItem)) {
+        if (SharedInventory.isLockItem(event.currentItem)) {
             event.isCancelled = true
             return
         }
@@ -340,7 +355,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             if (button in 0 until SharedInventory.SIZE) {
                 val item = event.whoClicked.inventory.getItem(button)
 
-                if (SharedInventory.isBarrier(item)) {
+                if (SharedInventory.isLockItem(item)) {
                     event.isCancelled = true
                 }
             }
@@ -349,7 +364,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
     @EventHandler
     fun onDropItem(event: PlayerDropItemEvent) {
-        if (event.itemDrop.itemStack.type == Material.BARRIER) {
+        if (SharedInventory.isLockItem(event.itemDrop.itemStack)) {
             event.isCancelled = true
         }
     }
@@ -358,7 +373,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     fun onInteract(event: PlayerInteractEvent) {
         val item = event.item ?: return
 
-        if (item.type == Material.BARRIER) {
+        if (SharedInventory.isLockItem(item)) {
             event.isCancelled = true
             return
         }
@@ -381,14 +396,14 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
     @EventHandler
     fun onItemSpawn(event: ItemSpawnEvent) {
-        if (event.entity.itemStack.type == Material.BARRIER) {
+        if (SharedInventory.isLockItem(event.entity.itemStack)) {
             event.isCancelled = true
         }
     }
 
     @EventHandler
     fun onSwap(event: PlayerSwapHandItemsEvent) {
-        if (event.offHandItem.type == Material.BARRIER || event.mainHandItem.type == Material.BARRIER) {
+        if (SharedInventory.isLockItem(event.offHandItem) || SharedInventory.isLockItem(event.mainHandItem)) {
             event.isCancelled = true
         }
     }
@@ -441,6 +456,66 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         val drops = event.drops
         drops.clear()
         drops.addAll(SharedInventory.takeAllExceptBarriers())
+
+        if (deathPenalty) sealOnDeath(event.entity.name)
+    }
+
+    private fun sealOnDeath(playerName: String) {
+        SharedInventory.sealRandomSlot { SealConditions.random(it) } ?: return
+
+        Bukkit.broadcast(
+            Component.text()
+                .append(Component.text(playerName, NamedTextColor.RED))
+                .append(Component.text("님이 사망하여 무작위 인벤토리 한칸이 봉인되었습니다."))
+                .build()
+        )
+
+        for (player in Bukkit.getOnlinePlayers()) {
+            player.playSound(player.location, "minecraft:ambient.warped_forest.mood", 10f, 0.6f)
+            player.playSound(player.location, "minecraft:entity.ravager.celebrate", 10f, 0.6f)
+        }
+    }
+
+    /** 보스 등을 플레이어가 처치하면 해당 조건의 봉인을 푼다 */
+    @EventHandler
+    fun onEntityDeath(event: EntityDeathEvent) {
+        if (!SharedInventory.active) return
+
+        val killer = event.entity.killer ?: return
+        val id = "kill:${event.entityType.name}"
+
+        for ((slot, condition) in SharedInventory.sealedSlots()) {
+            if (condition == id) unseal(slot, id, killer.name)
+        }
+    }
+
+    /** 아이템 획득 조건은 공유 인벤토리를 0.5초마다 확인해 푼다 */
+    private fun checkObtainSeals() {
+        if (!SharedInventory.active) return
+
+        for ((slot, id) in SharedInventory.sealedSlots()) {
+            val type = SealConditions.obtainedMaterial(id) ?: continue
+            if (SharedInventory.holds(type)) unseal(slot, id, null)
+        }
+    }
+
+    private fun unseal(slot: Int, conditionId: String, playerName: String?) {
+        if (!SharedInventory.unseal(slot)) return
+
+        val condition = SealConditions.obtainedMaterial(conditionId)?.let { SealConditions.obtain(it) }
+            ?: SealConditions.killedType(conditionId)?.let { SealConditions.kill(it) }
+
+        val message = Component.text()
+
+        if (playerName != null) {
+            message.append(Component.text(playerName, NamedTextColor.RED)).append(Component.text("님이 "))
+        }
+
+        if (condition != null) message.append(condition.description.color(NamedTextColor.GOLD))
+        message.append(Component.text(if (playerName != null) "하여 " else " 조건을 달성하여 "))
+        message.append(Component.text("인벤토리 봉인이 한칸 해제되었습니다!"))
+
+        Bukkit.broadcast(message.build())
     }
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
@@ -470,6 +545,27 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
             "exclude" -> if (requirePermission(sender, PERM_ADMIN)) {
                 handleExclude(sender, label, args)
+            }
+
+            "deathpenalty" -> if (requirePermission(sender, PERM_ADMIN)) {
+                val value = when (args.getOrNull(1)?.lowercase()) {
+                    "on" -> true
+                    "off" -> false
+                    null -> !deathPenalty
+                    else -> {
+                        sender.sendMessage(Component.text("사용법: /$label deathpenalty [on|off]", NamedTextColor.RED))
+                        return true
+                    }
+                }
+
+                setDeathPenalty(value)
+                Bukkit.broadcast(
+                    Component.text(
+                        if (value) "사망 페널티가 켜졌습니다. 사망하면 무작위 인벤토리 한칸이 봉인됩니다."
+                        else "사망 페널티가 꺼졌습니다. (이미 봉인된 칸은 조건을 달성해야 풀립니다)",
+                        if (value) NamedTextColor.RED else NamedTextColor.GREEN
+                    )
+                )
             }
 
             "stop" -> if (requirePermission(sender, PERM_ADMIN)) {
@@ -512,12 +608,15 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
                 if (sender.hasPermission(PERM_ADMIN)) {
                     add("list")
                     add("exclude")
+                    add("deathpenalty")
                     add("stop")
                 }
             }.filter { it.startsWith(args[0], ignoreCase = true) }
 
             2 -> if (args[0].equals("blocks", ignoreCase = true) && sender.hasPermission(PERM_BLOCKS)) {
                 blocksCompletions(args.drop(1))
+            } else if (args[0].equals("deathpenalty", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
+                listOf("on", "off").filter { it.startsWith(args[1], ignoreCase = true) }
             } else if (args[0].equals("exclude", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
                 listOf("list", "add", "remove").filter { it.startsWith(args[1], ignoreCase = true) }
             } else {

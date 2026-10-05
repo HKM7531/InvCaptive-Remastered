@@ -2,11 +2,14 @@ package com.github.monun.invcaptive.plugin
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.Bukkit
 import org.bukkit.Material
+import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
 import java.io.File
 import kotlin.math.min
 
@@ -29,10 +32,34 @@ object SharedInventory {
     var active: Boolean = true
         private set
 
+    private val sealKey = NamespacedKey("invcaptive", "seal_condition")
+
     fun isBarrier(item: ItemStack?): Boolean = item != null && item.type == Material.BARRIER
 
-    /** 해당 칸이 아직 장벽으로 잠겨 있는지 */
-    fun isLocked(slot: Int): Boolean = slot in 0 until SIZE && isBarrier(slots[slot])
+    /** 사망 페널티로 봉인된 칸의 표시 아이템(구조물 공허) */
+    fun isSeal(item: ItemStack?): Boolean = sealConditionOf(item) != null
+
+    /** 장벽이든 봉인이든 잠긴 칸의 표시 아이템 */
+    fun isLockItem(item: ItemStack?): Boolean = isBarrier(item) || isSeal(item)
+
+    /** 봉인 아이템에 기록된 해제 조건 id. 봉인 아이템이 아니면 null */
+    fun sealConditionOf(item: ItemStack?): String? {
+        if (item == null || item.type != Material.STRUCTURE_VOID) return null
+        return item.itemMeta?.persistentDataContainer?.get(sealKey, PersistentDataType.STRING)
+    }
+
+    /** 해당 칸이 아직 장벽이나 봉인으로 잠겨 있는지 */
+    fun isLocked(slot: Int): Boolean = slot in 0 until SIZE && isLockItem(slots[slot])
+
+    /** 봉인된 칸 -> 해제 조건 id */
+    fun sealedSlots(): Map<Int, String> {
+        val result = LinkedHashMap<Int, String>()
+        for (i in 0 until SIZE) sealConditionOf(slots[i])?.let { result[i] = it }
+        return result
+    }
+
+    /** 잠긴 칸을 뺀 공유 인벤토리에 해당 아이템이 있는지 */
+    fun holds(type: Material): Boolean = slots.any { it != null && it.type == type && !isLockItem(it) }
 
     // ---------------------------------------------------------------- sync
 
@@ -108,7 +135,7 @@ object SharedInventory {
      * - 그 외(꺼내기, 이동 등): 변경을 무시
      */
     private fun resolveConflict(player: Player, base: ItemStack?, mine: ItemStack?, slot: Int) {
-        if (mine == null || isBarrier(mine)) return
+        if (mine == null || isLockItem(mine)) return
 
         if (base == null) {
             drop(player, mine.clone())
@@ -156,7 +183,7 @@ object SharedInventory {
     fun stop() {
         mutate {
             for (i in 0 until SIZE) {
-                if (isBarrier(slots[i])) slots[i] = null
+                if (isLockItem(slots[i])) slots[i] = null
             }
         }
 
@@ -175,13 +202,52 @@ object SharedInventory {
         }
     }
 
+    /**
+     * 사망 페널티: 핫바 1번 칸(0)을 제외한 잠기지 않은 칸 하나를 골라 봉인한다. 봉인한 칸 번호(없으면 null).
+     * 칸에 아이템이 남아 있으면 사라지므로, 사망 시 아이템을 먼저 꺼낸 뒤 호출해야 한다.
+     */
+    fun sealRandomSlot(conditionId: (Set<String>) -> SealCondition?): Int? = mutate {
+        val candidates = (1 until SIZE).filter { !isLockItem(slots[it]) }
+        if (candidates.isEmpty()) return@mutate null
+
+        val condition = conditionId(sealedSlots().values.toSet()) ?: return@mutate null
+        val slot = candidates.random()
+
+        slots[slot] = sealItem(condition)
+        slot
+    }
+
+    /** 봉인된 칸을 비운다. 봉인 칸이 아니면 false */
+    fun unseal(slot: Int): Boolean = mutate {
+        if (slot in 0 until SIZE && isSeal(slots[slot])) {
+            slots[slot] = null
+            true
+        } else {
+            false
+        }
+    }
+
+    private fun sealItem(condition: SealCondition): ItemStack = ItemStack(Material.STRUCTURE_VOID).apply {
+        editMeta { meta ->
+            meta.displayName(Component.text("봉인된 인벤토리", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false))
+            meta.lore(
+                listOf(
+                    Component.text("봉인 해제 조건", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+                    Component.text().append(condition.description.color(NamedTextColor.YELLOW))
+                        .decoration(TextDecoration.ITALIC, false).build()
+                )
+            )
+            meta.persistentDataContainer.set(sealKey, PersistentDataType.STRING, condition.id)
+        }
+    }
+
     /** 사망 시: 장벽을 제외한 모든 아이템을 꺼내 반환하고 기준 인벤토리에서 제거 */
     fun takeAllExceptBarriers(): List<ItemStack> = mutate {
         val taken = ArrayList<ItemStack>()
 
         for (i in 0 until SIZE) {
             val item = slots[i] ?: continue
-            if (isBarrier(item)) continue
+            if (isLockItem(item)) continue
 
             taken += item
             slots[i] = null
