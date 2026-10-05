@@ -422,6 +422,10 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     private fun breakBlock(playerName: String, type: Material): Boolean {
         BlockLog.recordBreak(type)
 
+        for ((sealed, condition) in SharedInventory.sealedSlots()) {
+            if (condition == "break:${type.name}") unseal(sealed, condition, playerName)
+        }
+
         val slot = slotsByType[type] ?: return false
 
         if (!SharedInventory.release(slot)) return false
@@ -461,7 +465,9 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     }
 
     private fun sealOnDeath(playerName: String) {
-        SharedInventory.sealRandomSlot { SealConditions.random(it) } ?: return
+        SharedInventory.sealRandomSlot { inUse ->
+            SealConditions.random(inUse, candidates.filter { !BlockLog.isBroken(it) })
+        } ?: return
 
         Bukkit.broadcast(
             Component.text()
@@ -504,6 +510,9 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
         val condition = SealConditions.obtainedMaterial(conditionId)?.let { SealConditions.obtain(it) }
             ?: SealConditions.killedType(conditionId)?.let { SealConditions.kill(it) }
+            ?: SealConditions.brokenType(conditionId)?.let {
+                SealCondition(conditionId, Component.text().append(BlockNames.displayName(it, NamedTextColor.GOLD)).append(Component.text(" 파괴")).build())
+            }
 
         val message = Component.text()
 

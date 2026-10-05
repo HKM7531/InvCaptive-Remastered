@@ -1,6 +1,7 @@
 package com.github.monun.invcaptive.plugin
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.TextDecoration
 import org.bukkit.Material
 import org.bukkit.entity.EntityType
 
@@ -29,15 +30,30 @@ object SealConditions {
         Component.text().append(Component.translatable(type.translationKey())).append(Component.text(" 처치")).build()
     )
 
-    /**
-     * 무작위 조건 하나. 이미 쓰이는 조건은 피하고, 지금 공유 인벤토리에 이미 있는 아이템은 고르지 않는다.
-     */
-    fun random(inUse: Set<String>): SealCondition? {
-        val all = OBTAIN.filter { !SharedInventory.holds(it) }.map { obtain(it) } + KILL.map { kill(it) }
-        val fresh = all.filter { it.id !in inUse }
+    /** 안 캔 블록 파괴. 어떤 블록인지는 Lore 에서 가려진다 (obfuscated) */
+    fun breakBlock(type: Material) = SealCondition(
+        "break:${type.name}",
+        Component.text().append(Component.text("???").decorate(TextDecoration.OBFUSCATED)).append(Component.text(" 파괴")).build()
+    )
 
-        return (fresh.ifEmpty { all }).randomOrNull()
+    /**
+     * 무작위 조건 하나. 획득 / 처치 / 안 캔 블록 파괴 중 종류를 먼저 고른다.
+     * 이미 쓰이는 조건은 피하고, 지금 공유 인벤토리에 이미 있는 아이템은 고르지 않는다.
+     */
+    fun random(inUse: Set<String>, unbroken: List<Material>): SealCondition? {
+        val kinds = listOf(
+            OBTAIN.filter { !SharedInventory.holds(it) }.map { obtain(it) },
+            KILL.map { kill(it) },
+            unbroken.map { breakBlock(it) }
+        ).filter { it.isNotEmpty() }
+
+        val pool = kinds.randomOrNull() ?: return null
+
+        return pool.filter { it.id !in inUse }.ifEmpty { pool }.random()
     }
+
+    fun brokenType(id: String): Material? =
+        if (id.startsWith("break:")) Material.matchMaterial(id.removePrefix("break:")) else null
 
     fun obtainedMaterial(id: String): Material? =
         if (id.startsWith("obtain:")) Material.matchMaterial(id.removePrefix("obtain:")) else null
