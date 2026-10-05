@@ -206,7 +206,7 @@ class UpdateChecker(
                 preA.isEmpty() && preB.isEmpty() -> 0
                 preA.isEmpty() -> 1
                 preB.isEmpty() -> -1
-                else -> compareTokens(preA, preB)
+                else -> compareTokens(preA, preB, longerIsLower = true)
             }
         }
 
@@ -219,13 +219,14 @@ class UpdateChecker(
             return TOKEN.findAll(core).map { it.value }.toList() to TOKEN.findAll(pre).map { it.value }.toList()
         }
 
-        private fun compareTokens(a: List<String>, b: List<String>): Int {
+        private fun compareTokens(a: List<String>, b: List<String>, longerIsLower: Boolean = false): Int {
             for (i in 0 until maxOf(a.size, b.size)) {
                 val x = a.getOrNull(i)
                 val y = b.getOrNull(i)
 
-                if (x == null) return -1
-                if (y == null) return 1
+                // 사전 릴리스는 "a4-test" 처럼 꼬리가 더 붙은 쪽이 "a4" 보다 낮다
+                if (x == null) return if (longerIsLower) 1 else -1
+                if (y == null) return if (longerIsLower) -1 else 1
 
                 val numX = x.toBigIntegerOrNull()
                 val numY = y.toBigIntegerOrNull()
