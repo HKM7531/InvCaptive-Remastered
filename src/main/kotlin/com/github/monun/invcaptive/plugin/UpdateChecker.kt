@@ -63,7 +63,7 @@ class UpdateChecker(
         if (!firstTime) return
 
         if (stagedTag == newest.tag) {
-            plugin.logger.warning("새 버전 ${newest.tag} 을(를) plugins/update 에 받아 두었습니다. 서버를 재시작하면 업데이트됩니다. (현재 $currentVersion)")
+            plugin.logger.warning("새 버전 ${newest.tag} 이(가) 설치되어 있습니다. 서버 재시작 시 업데이트됩니다. (현재 $currentVersion)")
         } else {
             plugin.logger.warning("새 버전이 나왔습니다: ${newest.tag} (현재 $currentVersion) ${newest.url}")
         }
@@ -83,7 +83,7 @@ class UpdateChecker(
 
         if (stagedTag == release.tag) {
             message.append(
-                Component.text("새 버전 ${release.tag} 을(를) 받아 두었습니다. 서버를 재시작하면 업데이트됩니다. (현재 $currentVersion)", NamedTextColor.YELLOW)
+                Component.text("새 버전 ${release.tag} 을(를) 설치하였습니다. 서버 재시작 시 업데이트됩니다. (현재 $currentVersion)", NamedTextColor.YELLOW)
             )
         } else {
             message
