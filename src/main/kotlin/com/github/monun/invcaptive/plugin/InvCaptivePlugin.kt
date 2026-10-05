@@ -122,6 +122,23 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     /** 사망 페널티 켜짐 여부 (config.yml 의 death-penalty) */
     private var deathPenalty = false
 
+    /** 사망 페널티 난이도 (config.yml 의 death-penalty-difficulty) */
+    private enum class Difficulty(val label: String, val description: String) {
+        NORMAL("Normal", "봉인된 칸이 열린 칸의 절반 이상이 되지 않게 제한"),
+        HARD("Hard", "핫바 1번 칸을 제외한 모든 열린 칸 봉인 가능"),
+        EXTREME("Extreme", "Hard + 해제에 쓰이지 않은 캔 블록도 봉인 해제 조건에 포함")
+    }
+
+    private var difficulty = Difficulty.NORMAL
+
+    private fun setDifficulty(value: Difficulty) {
+        difficulty = value
+
+        val config = YamlConfiguration.loadConfiguration(configFile)
+        config.set("death-penalty-difficulty", value.name.lowercase())
+        config.save(configFile)
+    }
+
     private fun setDeathPenalty(value: Boolean) {
         deathPenalty = value
 
@@ -175,6 +192,8 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         if (changed) config.save(file)
 
         deathPenalty = config.getBoolean("death-penalty", false)
+        difficulty = Difficulty.values().firstOrNull { it.name.equals(config.getString("death-penalty-difficulty"), true) }
+            ?: Difficulty.NORMAL
 
         return config.getLong("seed")
     }
@@ -465,8 +484,23 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     }
 
     private fun sealOnDeath(playerName: String) {
+        if (difficulty == Difficulty.NORMAL && SharedInventory.sealLimitReached()) {
+            Bukkit.broadcast(
+                Component.text()
+                    .append(Component.text(playerName, NamedTextColor.RED))
+                    .append(Component.text("님이 사망했지만 봉인이 열린 칸의 절반에 도달해 더 봉인되지 않았습니다.", NamedTextColor.GRAY))
+                    .build()
+            )
+            return
+        }
+
         SharedInventory.sealRandomSlot { inUse ->
-            SealConditions.random(inUse, candidates.filter { !BlockLog.isBroken(it) })
+            // Extreme: 캔 블록 중 칸 해제에 쓰이지 않은 블록도 조건에 포함
+            val blocks = candidates.filter {
+                if (difficulty == Difficulty.EXTREME) BlockLog.releaseOf(it) == null else !BlockLog.isBroken(it)
+            }
+
+            SealConditions.random(inUse, blocks)
         } ?: return
 
         Bukkit.broadcast(
@@ -561,6 +595,20 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             }
 
             "deathpenalty" -> if (requirePermission(sender, PERM_ADMIN)) {
+                if (args.getOrNull(1).equals("difficulty", ignoreCase = true)) {
+                    val chosen = args.getOrNull(2)?.let { name -> Difficulty.values().firstOrNull { it.name.equals(name, true) } }
+
+                    if (chosen == null) {
+                        sender.sendMessage(Component.text("현재 난이도: ${difficulty.label} — ${difficulty.description}", NamedTextColor.YELLOW))
+                        sender.sendMessage(Component.text("사용법: /$label deathpenalty difficulty <normal|hard|extreme>", NamedTextColor.GRAY))
+                    } else {
+                        setDifficulty(chosen)
+                        Bukkit.broadcast(Component.text("사망 페널티 난이도: ${chosen.label} — ${chosen.description}", NamedTextColor.RED))
+                    }
+
+                    return true
+                }
+
                 val value = when (args.getOrNull(1)?.lowercase()) {
                     "on" -> true
                     "off" -> false
@@ -629,7 +677,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             2 -> if (args[0].equals("blocks", ignoreCase = true) && sender.hasPermission(PERM_BLOCKS)) {
                 blocksCompletions(args.drop(1))
             } else if (args[0].equals("deathpenalty", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
-                listOf("on", "off").filter { it.startsWith(args[1], ignoreCase = true) }
+                listOf("on", "off", "difficulty").filter { it.startsWith(args[1], ignoreCase = true) }
             } else if (args[0].equals("exclude", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
                 listOf("list", "add", "remove").filter { it.startsWith(args[1], ignoreCase = true) }
             } else {
@@ -638,6 +686,8 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
 
             3 -> if (args[0].equals("blocks", ignoreCase = true) && sender.hasPermission(PERM_BLOCKS)) {
                 blocksCompletions(args.drop(1))
+            } else if (args[0].equals("deathpenalty", ignoreCase = true) && args[1].equals("difficulty", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
+                Difficulty.values().map { it.name.lowercase() }.filter { it.startsWith(args[2], ignoreCase = true) }
             } else if (args[0].equals("exclude", ignoreCase = true) && sender.hasPermission(PERM_ADMIN)) {
                 val candidates: List<Material> = when (args[1].lowercase()) {
                     "add" -> Material.values().filter { !it.isLegacy && it.isBlock && !it.isAir }

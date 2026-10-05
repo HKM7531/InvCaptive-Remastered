@@ -202,6 +202,12 @@ object SharedInventory {
         }
     }
 
+    /** 봉인 수가 (장벽이 아닌 칸 = 열린 칸 + 봉인된 칸)의 절반에 닿아 더 봉인하면 절반 이상이 되는지 */
+    fun sealLimitReached(): Boolean {
+        val pool = (0 until SIZE).count { !isBarrier(slots[it]) }
+        return (sealedSlots().size + 1) * 2 >= pool
+    }
+
     /**
      * 사망 페널티: 핫바 1번 칸(0)을 제외한 잠기지 않은 칸 하나를 골라 봉인한다. 봉인한 칸 번호(없으면 null).
      * 칸에 아이템이 남아 있으면 사라지므로, 사망 시 아이템을 먼저 꺼낸 뒤 호출해야 한다.
