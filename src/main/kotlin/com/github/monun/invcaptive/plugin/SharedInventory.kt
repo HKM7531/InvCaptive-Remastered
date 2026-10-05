@@ -51,6 +51,11 @@ object SharedInventory {
     /** 해당 칸이 아직 장벽이나 봉인으로 잠겨 있는지 */
     fun isLocked(slot: Int): Boolean = slot in 0 until SIZE && isLockItem(slots[slot])
 
+    /** 해당 칸이 장벽으로 잠겨 있는지 (봉인은 해당 없음) */
+    fun isBarrierSlot(slot: Int): Boolean = slot in 0 until SIZE && isBarrier(slots[slot])
+
+    fun itemAt(slot: Int): ItemStack? = slots.getOrNull(slot)
+
     /** 봉인된 칸 -> 해제 조건 id */
     fun sealedSlots(): Map<Int, String> {
         val result = LinkedHashMap<Int, String>()

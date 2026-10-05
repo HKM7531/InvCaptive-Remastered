@@ -539,6 +539,14 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         }
     }
 
+    /** 조건 설명. 파괴 조건은 Lore 와 달리 실제 블록 이름을 보여 준다 */
+    private fun describeCondition(conditionId: String): SealCondition? =
+        SealConditions.obtainedMaterial(conditionId)?.let { SealConditions.obtain(it) }
+            ?: SealConditions.killedType(conditionId)?.let { SealConditions.kill(it) }
+            ?: SealConditions.brokenType(conditionId)?.let {
+                SealCondition(conditionId, Component.text().append(BlockNames.displayName(it, NamedTextColor.GOLD)).append(Component.text(" 파괴")).build())
+            }
+
     private fun unseal(slot: Int, conditionId: String, playerName: String?) {
         if (!SharedInventory.unseal(slot)) return
 
@@ -546,11 +554,7 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             player.world.spawn(player.location, Firework::class.java)
         }
 
-        val condition = SealConditions.obtainedMaterial(conditionId)?.let { SealConditions.obtain(it) }
-            ?: SealConditions.killedType(conditionId)?.let { SealConditions.kill(it) }
-            ?: SealConditions.brokenType(conditionId)?.let {
-                SealCondition(conditionId, Component.text().append(BlockNames.displayName(it, NamedTextColor.GOLD)).append(Component.text(" 파괴")).build())
-            }
+        val condition = describeCondition(conditionId)
 
         val message = Component.text()
 
@@ -1023,12 +1027,12 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     /** 슬롯별로 어떤 블록을 부수면 해제되는지, 현재 잠겨 있는지 표시 */
     private fun sendSlotList(sender: CommandSender) {
         val entries = slotsByType.entries.sortedBy { it.value }
-        val lockedCount = entries.count { SharedInventory.isLocked(it.value) }
+        val lockedCount = entries.count { SharedInventory.isBarrierSlot(it.value) }
 
         sender.sendMessage(Component.text("슬롯별 해제 블록 (잠김 $lockedCount/${entries.size})", NamedTextColor.YELLOW))
 
         for ((type, slot) in entries) {
-            val locked = SharedInventory.isLocked(slot)
+            val locked = SharedInventory.isBarrierSlot(slot)
 
             sender.sendMessage(
                 Component.text()
@@ -1042,7 +1046,49 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
                     .build()
             )
         }
+
+        val sealed = SharedInventory.sealedSlots()
+
+        if (sealed.isEmpty()) return
+
+        sender.sendMessage(Component.text("봉인된 칸 (${sealed.size}개) — 조건을 클릭하면 봉인 해제", NamedTextColor.YELLOW))
+
+        for ((slot, id) in sealed) {
+            val description = describeCondition(id)?.description ?: Component.text(id)
+
+            sender.sendMessage(
+                Component.text()
+                    .append(Component.text("${slotLabel(slot)}: ", NamedTextColor.GRAY))
+                    .append(
+                        description.color(NamedTextColor.RED)
+                            .hoverEvent(HoverEvent.showText(Component.text("클릭하여 봉인 해제")))
+                            .clickEvent(unsealClick(slot, id))
+                    )
+                    .build()
+            )
+        }
     }
+
+    /** 봉인 조건 클릭 시 그 칸의 봉인을 푼다 (OP 전용) */
+    private fun unsealClick(slot: Int, conditionId: String): ClickEvent<*> = ClickEvent.callback(
+        ClickCallback<Audience> { audience ->
+            val player = audience as? Player
+
+            if (player != null) {
+                if (!player.hasPermission(PERM_ADMIN)) {
+                    player.sendMessage(Component.text("이 명령어를 사용할 권한이 없습니다.", NamedTextColor.RED))
+                } else if (SharedInventory.sealConditionOf(SharedInventory.itemAt(slot)) == null) {
+                    player.sendMessage(Component.text("이미 해제된 칸입니다.", NamedTextColor.YELLOW))
+                } else {
+                    unseal(slot, conditionId, player.name)
+                }
+            }
+        },
+        ClickCallback.Options.builder()
+            .uses(ClickCallback.UNLIMITED_USES)
+            .lifetime(Duration.ofHours(1))
+            .build()
+    )
 
     /** 블록 이름 클릭 시 그 블록을 파괴한 것으로 처리해 해당 칸을 해제한다 (OP 전용) */
     private fun giveClick(type: Material): ClickEvent<*> =ClickEvent.callback(

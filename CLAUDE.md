@@ -33,7 +33,7 @@
 |---|---|---|
 | `/invcaptive` (`/inv`) | command | 잠금 시작 + 기록 초기화 |
 | `/invcaptive blocks [broken\|unbroken\|all] [페이지] [검색어]`, `/q ...` | blocks | 블록 목록 (Dialog, 20개/페이지, 범위 토글·번호(5개)·처음/이전/다음/끝·검색 입력칸과 검색/검색 해제 버튼, 콘솔은 채팅). 안 캔 블록 = 슬롯 후보 중 미파괴. 범위·숫자가 아닌 인자는 검색어(한국어/영문 이름 부분 일치) |
-| `/invcaptive list` | command | 칸별 해제 블록. 이름 클릭 = 그 블록을 파괴한 것으로 처리해 칸 해제 |
+| `/invcaptive list` | command | 칸별 해제 블록 + 봉인된 칸의 해제 조건(클릭하면 봉인 해제). 이름 클릭 = 그 블록을 파괴한 것으로 처리해 칸 해제 |
 | `/invcaptive excluded` | blocks | 제외 블록(사유 없이 쉼표로 한 줄) |
 | `/invcaptive exclude [list|add|remove <블록>]` | command | `excluded-blocks.txt` 편집(재시작 후 적용) |
 | `/invcaptive deathpenalty [on\|off]` | command | 사망 페널티 토글(인자 없으면 반전, `config.yml`의 `death-penalty`, 기본 꺼짐). 켜면 사망 시 핫바 1번 제외 잠기지 않은 칸 하나를 '봉인된 인벤토리'(structure_void, Lore에 해제 조건)로 봉인. 조건은 `SealCondition.kt`(아이템 획득 obtain:/보스 처치 kill:/안 캔 블록 파괴 break:, Lore는 `??? 파괴`로 가림), 획득은 0.5초마다 확인, 해제 시 황금 사과 + 폭죽(방벽 해제와 동일). 난이도 `/invcaptive deathpenalty difficulty normal|hard|extreme`(`death-penalty-difficulty`, 기본 normal): normal=봉인 수가 열린 칸의 절반 미만, hard=제한 없음, extreme=캔 블록 중 칸 해제에 안 쓰인 블록도 파괴 조건에 포함 |
