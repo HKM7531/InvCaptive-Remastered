@@ -508,6 +508,10 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
     private fun unseal(slot: Int, conditionId: String, playerName: String?) {
         if (!SharedInventory.unseal(slot)) return
 
+        for (player in Bukkit.getOnlinePlayers()) {
+            player.world.spawn(player.location, Firework::class.java)
+        }
+
         val condition = SealConditions.obtainedMaterial(conditionId)?.let { SealConditions.obtain(it) }
             ?: SealConditions.killedType(conditionId)?.let { SealConditions.kill(it) }
             ?: SealConditions.brokenType(conditionId)?.let {

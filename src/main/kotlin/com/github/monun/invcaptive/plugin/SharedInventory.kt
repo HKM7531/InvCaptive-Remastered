@@ -217,10 +217,10 @@ object SharedInventory {
         slot
     }
 
-    /** 봉인된 칸을 비운다. 봉인 칸이 아니면 false */
+    /** 봉인된 칸을 "새로운 인벤토리" 황금 사과로 바꾼다. 봉인 칸이 아니면 false */
     fun unseal(slot: Int): Boolean = mutate {
         if (slot in 0 until SIZE && isSeal(slots[slot])) {
-            slots[slot] = null
+            slots[slot] = releaseMarker()
             true
         } else {
             false

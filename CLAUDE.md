@@ -36,7 +36,7 @@
 | `/invcaptive list` | command | 칸별 해제 블록. 이름 클릭 = 그 블록을 파괴한 것으로 처리해 칸 해제 |
 | `/invcaptive excluded` | blocks | 제외 블록(사유 없이 쉼표로 한 줄) |
 | `/invcaptive exclude [list|add|remove <블록>]` | command | `excluded-blocks.txt` 편집(재시작 후 적용) |
-| `/invcaptive deathpenalty [on\|off]` | command | 사망 페널티 토글(인자 없으면 반전, `config.yml`의 `death-penalty`, 기본 꺼짐). 켜면 사망 시 핫바 1번 제외 잠기지 않은 칸 하나를 '봉인된 인벤토리'(structure_void, Lore에 해제 조건)로 봉인. 조건은 `SealCondition.kt`(아이템 획득 obtain:/보스 처치 kill:/안 캔 블록 파괴 break:, Lore는 `??? 파괴`로 가림), 획득은 0.5초마다 확인, 해제된 칸은 빈 칸 |
+| `/invcaptive deathpenalty [on\|off]` | command | 사망 페널티 토글(인자 없으면 반전, `config.yml`의 `death-penalty`, 기본 꺼짐). 켜면 사망 시 핫바 1번 제외 잠기지 않은 칸 하나를 '봉인된 인벤토리'(structure_void, Lore에 해제 조건)로 봉인. 조건은 `SealCondition.kt`(아이템 획득 obtain:/보스 처치 kill:/안 캔 블록 파괴 break:, Lore는 `??? 파괴`로 가림), 획득은 0.5초마다 확인, 해제 시 황금 사과 + 폭죽(방벽 해제와 동일) |
 | `/invcaptive stop` | command | 방벽 제거 + 공유 종료 (`/invcaptive`로 재시작) |
 
 칸 표기: 핫바 `0-1`~`0-9`, 인벤토리 `행-열`(1행 1열=`1-1`), 방어구는 이름(신발/레깅스/흉갑/투구/보조 손).
