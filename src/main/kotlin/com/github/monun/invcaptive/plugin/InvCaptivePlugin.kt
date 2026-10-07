@@ -79,7 +79,9 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             // 서바이벌에서 마주치지 않는 블록
             "PETRIFIED_OAK_SLAB", "PLAYER_HEAD", "PLAYER_WALL_HEAD",
             // 공기 종류
-            "AIR", "CAVE_AIR", "VOID_AIR"
+            "AIR", "CAVE_AIR", "VOID_AIR",
+            // 하나뿐인 특수 블록
+            "DRAGON_EGG"
         )
     }
 

@@ -45,11 +45,12 @@
 - `config.yml`(시드), `inventory.yml`, `broken-blocks.yml`
 - `excluded-blocks.txt`: 처음 실행 시 내장 제외 목록(`BUILTIN_EXCLUDED`)으로 생성. 한 줄에 Material 이름 하나(또는 쉼표), `#` 주석. 이후 이 파일이 기준. 파일을 지우면 내장 기본값으로 재생성. **내장 목록을 코드에서 바꿔도 이미 만들어진 파일에는 반영되지 않음**
 
-## 제외 블록 (내장 25개)
+## 제외 블록 (내장 26개)
 - 경도 -1: BEDROCK, BARRIER, LIGHT, MOVING_PISTON, COMMAND_BLOCK, REPEATING_COMMAND_BLOCK, CHAIN_COMMAND_BLOCK, STRUCTURE_BLOCK, JIGSAW, TEST_BLOCK, TEST_INSTANCE_BLOCK, END_PORTAL, END_PORTAL_FRAME, END_GATEWAY, NETHER_PORTAL (minecraft-data 26.1의 경도 -1 목록 15개와 일치)
 - 선택해서 부술 수 없음: WATER, LAVA, BUBBLE_COLUMN, STRUCTURE_VOID (근거 약함, 데이터상 경도는 0~100)
 - 서바이벌에서 마주치지 않음: PETRIFIED_OAK_SLAB, PLAYER_HEAD, PLAYER_WALL_HEAD
 - 공기 종류: AIR, CAVE_AIR, VOID_AIR
+- 하나뿐인 특수 블록: DRAGON_EGG (서버에 이미 `excluded-blocks.txt`가 있으면 `/invcaptive exclude add dragon_egg` 후 재시작)
 - REINFORCED_DEEPSLATE는 경도 55로 부술 수 있어 제외하지 않음 (서버에 예전 `excluded-blocks.txt`가 있으면 그 줄을 지울 것)
 - 제외 목록이 바뀌면 시드→슬롯 대응이 바뀜 → `/invcaptive list`로 확인하고 `/invcaptive`로 다시 시작
 
