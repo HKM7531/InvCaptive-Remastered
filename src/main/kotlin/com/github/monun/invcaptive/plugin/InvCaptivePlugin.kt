@@ -18,6 +18,8 @@ import net.kyori.adventure.text.event.HoverEvent
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.ItemStack
 import java.time.Duration
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.Material
@@ -482,10 +484,10 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
         drops.clear()
         drops.addAll(SharedInventory.takeAllExceptBarriers())
 
-        if (deathPenalty) sealOnDeath(event.entity.name)
+        if (deathPenalty) sealOnDeath(event.entity.name, event.deathMessage())
     }
 
-    private fun sealOnDeath(playerName: String) {
+    private fun sealOnDeath(playerName: String, deathMessage: Component?) {
         if (difficulty == Difficulty.NORMAL && SharedInventory.sealLimitReached()) {
             Bukkit.broadcast(
                 Component.text()
@@ -496,7 +498,13 @@ class InvCaptivePlugin : JavaPlugin(), Listener {
             return
         }
 
-        SharedInventory.sealRandomSlot { inUse ->
+        val death = SharedInventory.DeathInfo(
+            playerName,
+            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+            deathMessage
+        )
+
+        SharedInventory.sealRandomSlot(death) { inUse ->
             // Extreme: 캔 블록 중 칸 해제에 쓰이지 않은 블록도 조건에 포함
             val blocks = candidates.filter {
                 if (difficulty == Difficulty.EXTREME) BlockLog.releaseOf(it) == null else !BlockLog.isBroken(it)

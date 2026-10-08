@@ -26,6 +26,9 @@ import kotlin.math.min
 object SharedInventory {
     const val SIZE = 41
 
+    /** 봉인의 원인이 된 사망 정보 (Lore 에 표시) */
+    data class DeathInfo(val playerName: String, val time: String, val message: Component?)
+
     private val slots = arrayOfNulls<ItemStack>(SIZE)
 
     /** false 이면 공유와 잠금이 종료된 상태 (/invcaptive stop). /invcaptive 로 다시 시작한다. */
@@ -217,14 +220,14 @@ object SharedInventory {
      * 사망 페널티: 핫바 1번 칸(0)을 제외한 잠기지 않은 칸 하나를 골라 봉인한다. 봉인한 칸 번호(없으면 null).
      * 칸에 아이템이 남아 있으면 사라지므로, 사망 시 아이템을 먼저 꺼낸 뒤 호출해야 한다.
      */
-    fun sealRandomSlot(conditionId: (Set<String>) -> SealCondition?): Int? = mutate {
+    fun sealRandomSlot(death: DeathInfo, conditionId: (Set<String>) -> SealCondition?): Int? = mutate {
         val candidates = (1 until SIZE).filter { !isLockItem(slots[it]) }
         if (candidates.isEmpty()) return@mutate null
 
         val condition = conditionId(sealedSlots().values.toSet()) ?: return@mutate null
         val slot = candidates.random()
 
-        slots[slot] = sealItem(condition)
+        slots[slot] = sealItem(condition, death)
         slot
     }
 
@@ -238,16 +241,25 @@ object SharedInventory {
         }
     }
 
-    private fun sealItem(condition: SealCondition): ItemStack = ItemStack(Material.STRUCTURE_VOID).apply {
+    private fun sealItem(condition: SealCondition, death: DeathInfo): ItemStack = ItemStack(Material.STRUCTURE_VOID).apply {
         editMeta { meta ->
             meta.displayName(Component.text("봉인된 인벤토리", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false))
-            meta.lore(
-                listOf(
-                    Component.text("봉인 해제 조건", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-                    Component.text().append(condition.description.color(NamedTextColor.YELLOW))
-                        .decoration(TextDecoration.ITALIC, false).build()
-                )
-            )
+            fun line(label: String, value: Component) = Component.text()
+                .append(Component.text("$label: ", NamedTextColor.GRAY))
+                .append(value.colorIfAbsent(NamedTextColor.WHITE))
+                .decoration(TextDecoration.ITALIC, false)
+                .build()
+
+            val lore = ArrayList<Component>()
+            lore += line("사망한 플레이어", Component.text(death.playerName))
+            lore += line("사망 시각", Component.text(death.time))
+            death.message?.let { lore += line("사망 메시지", it) }
+            lore += Component.empty()
+            lore += Component.text("봉인 해제 조건", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+            lore += Component.text().append(condition.description.color(NamedTextColor.YELLOW))
+                .decoration(TextDecoration.ITALIC, false).build()
+
+            meta.lore(lore)
             meta.persistentDataContainer.set(sealKey, PersistentDataType.STRING, condition.id)
         }
     }
