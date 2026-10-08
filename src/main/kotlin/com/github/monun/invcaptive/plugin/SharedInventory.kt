@@ -244,16 +244,10 @@ object SharedInventory {
     private fun sealItem(condition: SealCondition, death: DeathInfo): ItemStack = ItemStack(Material.STRUCTURE_VOID).apply {
         editMeta { meta ->
             meta.displayName(Component.text("봉인된 인벤토리", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false))
-            fun line(label: String, value: Component) = Component.text()
-                .append(Component.text("$label: ", NamedTextColor.GRAY))
-                .append(value.colorIfAbsent(NamedTextColor.WHITE))
-                .decoration(TextDecoration.ITALIC, false)
-                .build()
-
             val lore = ArrayList<Component>()
-            lore += line("사망한 플레이어", Component.text(death.playerName))
-            lore += line("사망 시각", Component.text(death.time))
-            death.message?.let { lore += line("사망 메시지", it) }
+            lore += (death.message ?: Component.text("${death.playerName}이(가) 죽었습니다."))
+                .colorIfAbsent(NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false)
+            lore += Component.text(death.time, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
             lore += Component.empty()
             lore += Component.text("봉인 해제 조건", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
             lore += Component.text().append(condition.description.color(NamedTextColor.YELLOW))
